@@ -170,70 +170,67 @@ tr:hover { background: #f8f9fa; }
         <div class="pagination" id="pagination"></div>
     </div>
 </div>
+<script src="api.js"></script>
 <script>
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000'
-    : 'https://your-backend-url.com';
-
-let csrfToken = '';
 let currentPage = 1;
 let currentFilters = {};
 
-async function getCsrfToken() {
-    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
-    const data = await res.json();
-    if (data.status === 'success') csrfToken = data.csrf_token;
-}
-
-async function checkAuth() {
-    await getCsrfToken();
-    const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', headers: { 'X-API-Version': '1' } });
-    if (res.status === 401) { window.location.href = 'index.html'; return null; }
-    const data = await res.json();
-    return data.data;
-}
-
 async function loadProfiles(page = 1) {
-    const user = await checkAuth();
-    if (!user) return;
-    document.getElementById('username').textContent = '@' + user.username;
-    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
-    if (user.role === 'admin') document.getElementById('createBtn').style.display = 'inline-block';
+    try {
+        console.log('[PROFILES] Loading page', page, 'with filters:', currentFilters);
+        
+        // Check authentication
+        const user = await requireAuth();
+        if (!user) return;
 
-    const params = new URLSearchParams({ page, limit: 10, ...currentFilters });
-    const res = await fetch(`${API_BASE}/api/profiles?${params}`, {
-        credentials: 'include',
-        headers: { 'X-API-Version': '1' }
-    });
-    const data = await res.json();
+        // Display user info
+        document.getElementById('username').textContent = '@' + user.username;
+        document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+        
+        // Show create button for admins
+        if (user.role === 'admin') {
+            document.getElementById('createBtn').style.display = 'inline-block';
+        }
 
-    const tbody = document.getElementById('profilesTable');
-    tbody.innerHTML = '';
-    const empty = document.getElementById('emptyState');
+        // Fetch profiles with filters
+        const params = new URLSearchParams({ page, limit: 10, ...currentFilters });
+        const data = await apiCall(`/api/profiles?${params}`, { method: 'GET' });
 
-    if (!data.data || data.data.length === 0) {
-        empty.style.display = 'block';
-        document.getElementById('pagination').innerHTML = '';
-        return;
+        const tbody = document.getElementById('profilesTable');
+        tbody.innerHTML = '';
+        const empty = document.getElementById('emptyState');
+
+        if (!data.data || data.data.length === 0) {
+            console.log('[PROFILES] No profiles found');
+            empty.style.display = 'block';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        empty.style.display = 'none';
+        console.log('[PROFILES] Found', data.data.length, 'profiles');
+
+        // Render table
+        data.data.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;font-weight:500;">${p.name}</a></td>
+                <td>${p.gender || 'N/A'}</td>
+                <td>${p.age || 'N/A'}</td>
+                <td>${p.age_group || 'N/A'}</td>
+                <td>${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}</td>
+                <td>${p.gender_probability != null ? p.gender_probability.toFixed(2) : 'N/A'}</td>
+                <td>${new Date(p.created_at).toLocaleDateString()}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderPagination(data.page, data.total_pages, data.links);
+        currentPage = page;
+    } catch (error) {
+        console.error('[PROFILES] Error:', error);
+        alert('Failed to load profiles: ' + error.message);
     }
-    empty.style.display = 'none';
-
-    data.data.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;font-weight:500;">${p.name}</a></td>
-            <td>${p.gender || 'N/A'}</td>
-            <td>${p.age || 'N/A'}</td>
-            <td>${p.age_group || 'N/A'}</td>
-            <td>${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}</td>
-            <td>${p.gender_probability != null ? p.gender_probability.toFixed(2) : 'N/A'}</td>
-            <td>${new Date(p.created_at).toLocaleDateString()}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-
-    renderPagination(data.page, data.total_pages, data.links);
-    currentPage = page;
 }
 
 function renderPagination(page, totalPages, links) {
@@ -243,7 +240,7 @@ function renderPagination(page, totalPages, links) {
 
     const prevBtn = document.createElement('button');
     prevBtn.textContent = 'Prev';
-    prevBtn.disabled = !links.prev;
+    prevBtn.disabled = !links || !links.prev;
     prevBtn.onclick = () => loadProfiles(page - 1);
     div.appendChild(prevBtn);
 
@@ -257,63 +254,73 @@ function renderPagination(page, totalPages, links) {
 
     const nextBtn = document.createElement('button');
     nextBtn.textContent = 'Next';
-    nextBtn.disabled = !links.next;
+    nextBtn.disabled = !links || !links.next;
     nextBtn.onclick = () => loadProfiles(page + 1);
     div.appendChild(nextBtn);
 }
 
 function applyFilters() {
-    currentFilters = {};
-    const g = document.getElementById('gender').value;
-    const ag = document.getElementById('age_group').value;
-    const c = document.getElementById('country').value.trim();
-    const minA = document.getElementById('min_age').value;
-    const maxA = document.getElementById('max_age').value;
-    const sb = document.getElementById('sort_by').value;
-    const o = document.getElementById('order').value;
-    if (g) currentFilters.gender = g;
-    if (ag) currentFilters.age_group = ag;
-    if (c) currentFilters.country_id = c;
-    if (minA) currentFilters.min_age = minA;
-    if (maxA) currentFilters.max_age = maxA;
-    currentFilters.sort_by = sb;
-    currentFilters.order = o;
-    loadProfiles(1);
+    try {
+        currentFilters = {};
+        const g = document.getElementById('gender').value;
+        const ag = document.getElementById('age_group').value;
+        const c = document.getElementById('country').value.trim();
+        const minA = document.getElementById('min_age').value;
+        const maxA = document.getElementById('max_age').value;
+        const sb = document.getElementById('sort_by').value;
+        const o = document.getElementById('order').value;
+        
+        if (g) currentFilters.gender = g;
+        if (ag) currentFilters.age_group = ag;
+        if (c) currentFilters.country_id = c;
+        if (minA) currentFilters.min_age = minA;
+        if (maxA) currentFilters.max_age = maxA;
+        currentFilters.sort_by = sb;
+        currentFilters.order = o;
+        
+        console.log('[PROFILES] Filters applied:', currentFilters);
+        loadProfiles(1);
+    } catch (error) {
+        console.error('[PROFILES] Filter error:', error);
+    }
 }
 
-function showCreate() {
-    const name = prompt('Enter profile name:');
-    if (!name) return;
-    fetch(`${API_BASE}/api/profiles`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-API-Version': '1',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify({ name })
-    }).then(r => r.json()).then(d => {
-        if (d.status === 'success') { alert('Created!'); loadProfiles(currentPage); }
-        else alert(d.message || 'Failed');
-    });
+async function showCreate() {
+    try {
+        const name = prompt('Enter profile name:');
+        if (!name) return;
+        
+        console.log('[PROFILES] Creating new profile:', name);
+        
+        const data = await apiCall('/api/profiles', {
+            method: 'POST',
+            body: JSON.stringify({ name })
+        });
+        
+        if (data.status === 'success') {
+            alert('Profile created!');
+            loadProfiles(currentPage);
+        } else {
+            alert(data.message || 'Failed to create profile');
+        }
+    } catch (error) {
+        console.error('[PROFILES] Create error:', error);
+        alert('Failed to create profile: ' + error.message);
+    }
 }
 
 function exportCsv() {
-    const params = new URLSearchParams({ format: 'csv', ...currentFilters });
-    window.open(`${API_BASE}/api/profiles/export?${params}`, '_blank');
+    try {
+        const params = new URLSearchParams({ format: 'csv', ...currentFilters });
+        console.log('[PROFILES] Exporting CSV with filters:', currentFilters);
+        window.open(`${API_BASE}/api/profiles/export?${params}`, '_blank');
+    } catch (error) {
+        console.error('[PROFILES] Export error:', error);
+    }
 }
 
-async function logout() {
-    await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'X-API-Version': '1', 'X-CSRFToken': csrfToken }
-    });
-    window.location.href = 'index.html';
-}
-
-loadProfiles();
+// Load profiles on page ready
+document.addEventListener('DOMContentLoaded', loadProfiles);
 </script>
 </body>
 </html>

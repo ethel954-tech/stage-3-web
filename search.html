@@ -160,28 +160,10 @@ body {
         <div class="pagination" id="pagination"></div>
     </div>
 </div>
+<script src="api.js"></script>
 <script>
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000'
-    : 'https://your-backend-url.com';
-
-let csrfToken = '';
 let currentPage = 1;
 let currentQuery = '';
-
-async function getCsrfToken() {
-    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
-    const data = await res.json();
-    if (data.status === 'success') csrfToken = data.csrf_token;
-}
-
-async function checkAuth() {
-    await getCsrfToken();
-    const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', headers: { 'X-API-Version': '1' } });
-    if (res.status === 401) { window.location.href = 'index.html'; return null; }
-    const data = await res.json();
-    return data.data;
-}
 
 function setQuery(q) {
     document.getElementById('query').value = q;
@@ -189,47 +171,66 @@ function setQuery(q) {
 }
 
 async function doSearch(page = 1) {
-    const user = await checkAuth();
-    if (!user) return;
-    document.getElementById('username').textContent = '@' + user.username;
-    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+    try {
+        console.log('[SEARCH] Query:', currentQuery || document.getElementById('query').value);
 
-    const query = document.getElementById('query').value.trim();
-    if (!query) return;
-    currentQuery = query;
+        // Check authentication
+        const user = await requireAuth();
+        if (!user) return;
 
-    const res = await fetch(`${API_BASE}/api/profiles/search/?q=${encodeURIComponent(query)}&page=${page}&limit=10`, {
-        credentials: 'include',
-        headers: { 'X-API-Version': '1' }
-    });
-    const data = await res.json();
+        // Display user info
+        document.getElementById('username').textContent = '@' + user.username;
+        document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
 
-    const resultsDiv = document.getElementById('results');
-    const listDiv = document.getElementById('resultsList');
-    listDiv.innerHTML = '';
+        // Get search query
+        const query = document.getElementById('query').value.trim();
+        if (!query) {
+            alert('Please enter a search query');
+            return;
+        }
+        currentQuery = query;
 
-    if (!data.data || data.data.length === 0) {
-        listDiv.innerHTML = '<div class="empty">No profiles found for this query.</div>';
+        // Perform search
+        console.log('[SEARCH] Calling /api/profiles/search with q:', query);
+        const data = await apiCall(
+            `/api/profiles/search?q=${encodeURIComponent(query)}&page=${page}&limit=10`,
+            { method: 'GET' }
+        );
+
+        const resultsDiv = document.getElementById('results');
+        const listDiv = document.getElementById('resultsList');
+        listDiv.innerHTML = '';
+
+        if (!data.data || data.data.length === 0) {
+            console.log('[SEARCH] No results found');
+            listDiv.innerHTML = '<div class="empty">No profiles found for this query.</div>';
+            resultsDiv.style.display = 'block';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+
+        console.log('[SEARCH] Found', data.data.length, 'results');
+
+        // Render results
+        data.data.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'result-card';
+            div.innerHTML = `
+                <h4><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;">${p.name}</a></h4>
+                <div class="meta">
+                    ${p.gender || 'N/A'} • Age ${p.age || 'N/A'} • ${p.age_group || 'N/A'} • ${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}
+                </div>
+            `;
+            listDiv.appendChild(div);
+        });
+
+        renderPagination(data.page, data.total_pages, data.links);
         resultsDiv.style.display = 'block';
-        document.getElementById('pagination').innerHTML = '';
-        return;
+        currentPage = page;
+    } catch (error) {
+        console.error('[SEARCH] Error:', error);
+        alert('Search failed: ' + error.message);
     }
-
-    data.data.forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'result-card';
-        div.innerHTML = `
-            <h4><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;">${p.name}</a></h4>
-            <div class="meta">
-                ${p.gender || 'N/A'} &bull; Age ${p.age || 'N/A'} &bull; ${p.age_group || 'N/A'} &bull; ${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}
-            </div>
-        `;
-        listDiv.appendChild(div);
-    });
-
-    renderPagination(data.page, data.total_pages, data.links);
-    resultsDiv.style.display = 'block';
-    currentPage = page;
 }
 
 function renderPagination(page, totalPages, links) {
@@ -239,25 +240,30 @@ function renderPagination(page, totalPages, links) {
 
     const prevBtn = document.createElement('button');
     prevBtn.textContent = 'Prev';
-    prevBtn.disabled = !links.prev;
+    prevBtn.disabled = !links || !links.prev;
     prevBtn.onclick = () => doSearch(page - 1);
     div.appendChild(prevBtn);
 
+    const pageInfo = document.createElement('span');
+    pageInfo.style.padding = '8px 16px';
+    pageInfo.textContent = `Page ${page} / ${totalPages}`;
+    div.appendChild(pageInfo);
+
     const nextBtn = document.createElement('button');
     nextBtn.textContent = 'Next';
-    nextBtn.disabled = !links.next;
+    nextBtn.disabled = !links || !links.next;
     nextBtn.onclick = () => doSearch(page + 1);
     div.appendChild(nextBtn);
 }
 
-async function logout() {
-    await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'X-API-Version': '1', 'X-CSRFToken': csrfToken }
+// Add Enter key support
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('query').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            doSearch();
+        }
     });
-    window.location.href = 'index.html';
-}
+});
 </script>
 </body>
 </html>
