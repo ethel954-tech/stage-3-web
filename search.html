@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insighta Labs+ - Search</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background: #f5f7fa;
+    color: #333;
+}
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+}
+.navbar-brand { font-weight: 700; font-size: 20px; }
+.nav-links { display: flex; gap: 25px; }
+.nav-links a {
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    font-weight: 500;
+}
+.nav-links a:hover, .nav-links a.active { color: white; }
+.container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+.search-box {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    text-align: center;
+}
+.search-box h2 { margin: 0 0 10px; }
+.search-box p { color: #666; margin-bottom: 20px; }
+.search-input {
+    display: flex;
+    gap: 10px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+.search-input input {
+    flex: 1;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 2px solid #e1e5e9;
+    font-size: 16px;
+    font-family: inherit;
+}
+.search-input button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 16px;
+}
+.examples {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.examples span {
+    background: #f0f2f5;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #555;
+    cursor: pointer;
+}
+.examples span:hover { background: #e1e5e9; }
+.results {
+    margin-top: 20px;
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.result-card {
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+}
+.result-card:last-child { border-bottom: none; }
+.result-card h4 { margin: 0 0 6px; color: #667eea; }
+.result-card .meta { font-size: 13px; color: #666; }
+.empty { text-align: center; padding: 40px; color: #999; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-info img { width: 32px; height: 32px; border-radius: 50%; }
+.logout-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+}
+.pagination button {
+    padding: 8px 16px;
+    border: 2px solid #e1e5e9;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.pagination button:disabled { opacity: 0.4; }
+</style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="navbar-brand">Insighta Labs+</div>
+    <div class="nav-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="profiles.html">Profiles</a>
+        <a href="search.html" class="active">Search</a>
+        <a href="account.html">Account</a>
+    </div>
+    <div class="user-info">
+        <img id="avatar" src="" alt="">
+        <span id="username"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
+<div class="container">
+    <div class="search-box">
+        <h2>Natural Language Search</h2>
+        <p>Search profiles using plain English</p>
+        <div class="search-input">
+            <input id="query" placeholder="e.g. young males from nigeria" onkeypress="if(event.key==='Enter') doSearch()">
+            <button onclick="doSearch()">Search</button>
+        </div>
+        <div class="examples">
+            <span onclick="setQuery('young males from nigeria')">young males from nigeria</span>
+            <span onclick="setQuery('females above 30')">females above 30</span>
+            <span onclick="setQuery('adult males from kenya')">adult males from kenya</span>
+            <span onclick="setQuery('teenagers')">teenagers</span>
+        </div>
+    </div>
+    <div class="results" id="results" style="display:none;">
+        <div id="resultsList"></div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+<script>
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : 'https://your-backend-url.com';
+
+let csrfToken = '';
+let currentPage = 1;
+let currentQuery = '';
+
+async function getCsrfToken() {
+    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
+    const data = await res.json();
+    if (data.status === 'success') csrfToken = data.csrf_token;
+}
+
+async function checkAuth() {
+    await getCsrfToken();
+    const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', headers: { 'X-API-Version': '1' } });
+    if (res.status === 401) { window.location.href = 'index.html'; return null; }
+    const data = await res.json();
+    return data.data;
+}
+
+function setQuery(q) {
+    document.getElementById('query').value = q;
+    doSearch();
+}
+
+async function doSearch(page = 1) {
+    const user = await checkAuth();
+    if (!user) return;
+    document.getElementById('username').textContent = '@' + user.username;
+    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+
+    const query = document.getElementById('query').value.trim();
+    if (!query) return;
+    currentQuery = query;
+
+    const res = await fetch(`${API_BASE}/api/profiles/search/?q=${encodeURIComponent(query)}&page=${page}&limit=10`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    const data = await res.json();
+
+    const resultsDiv = document.getElementById('results');
+    const listDiv = document.getElementById('resultsList');
+    listDiv.innerHTML = '';
+
+    if (!data.data || data.data.length === 0) {
+        listDiv.innerHTML = '<div class="empty">No profiles found for this query.</div>';
+        resultsDiv.style.display = 'block';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+    }
+
+    data.data.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'result-card';
+        div.innerHTML = `
+            <h4><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;">${p.name}</a></h4>
+            <div class="meta">
+                ${p.gender || 'N/A'} &bull; Age ${p.age || 'N/A'} &bull; ${p.age_group || 'N/A'} &bull; ${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}
+            </div>
+        `;
+        listDiv.appendChild(div);
+    });
+
+    renderPagination(data.page, data.total_pages, data.links);
+    resultsDiv.style.display = 'block';
+    currentPage = page;
+}
+
+function renderPagination(page, totalPages, links) {
+    const div = document.getElementById('pagination');
+    div.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = 'Prev';
+    prevBtn.disabled = !links.prev;
+    prevBtn.onclick = () => doSearch(page - 1);
+    div.appendChild(prevBtn);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next';
+    nextBtn.disabled = !links.next;
+    nextBtn.onclick = () => doSearch(page + 1);
+    div.appendChild(nextBtn);
+}
+
+async function logout() {
+    await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-API-Version': '1', 'X-CSRFToken': csrfToken }
+    });
+    window.location.href = 'index.html';
+}
+</script>
+</body>
+</html>

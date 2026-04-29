@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insighta Labs+ - Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background: #f5f7fa;
+    color: #333;
+}
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+}
+.navbar-brand { font-weight: 700; font-size: 20px; }
+.nav-links { display: flex; gap: 25px; }
+.nav-links a {
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+.nav-links a:hover, .nav-links a.active { color: white; }
+.container {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.card h3 { margin: 0 0 8px; font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 36px; font-weight: 700; color: #667eea; }
+.card .sub { font-size: 13px; color: #999; margin-top: 4px; }
+.section-title { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+.btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.btn-danger { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-info img { width: 32px; height: 32px; border-radius: 50%; }
+.logout-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.hidden { display: none !important; }
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #666;
+}
+</style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="navbar-brand">Insighta Labs+</div>
+    <div class="nav-links">
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="profiles.html">Profiles</a>
+        <a href="search.html">Search</a>
+        <a href="account.html">Account</a>
+    </div>
+    <div class="user-info">
+        <img id="avatar" src="" alt="">
+        <span id="username"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
+<div class="container">
+    <div class="grid">
+        <div class="card">
+            <h3>Total Profiles</h3>
+            <div class="value" id="totalProfiles">-</div>
+            <div class="sub">In database</div>
+        </div>
+        <div class="card">
+            <h3>Countries</h3>
+            <div class="value" id="totalCountries">-</div>
+            <div class="sub">Unique countries</div>
+        </div>
+        <div class="card">
+            <h3>Adults</h3>
+            <div class="value" id="totalAdults">-</div>
+            <div class="sub">Age group: adult</div>
+        </div>
+        <div class="card">
+            <h3>Your Role</h3>
+            <div class="value" id="userRole" style="font-size: 24px;">-</div>
+            <div class="sub" id="roleDesc">-</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="section-title">Recent Activity</div>
+        <p style="color:#666;">Welcome to Insighta Labs+. Use the navigation to explore profiles, search with natural language, or manage your account.</p>
+    </div>
+</div>
+<script>
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : 'https://your-backend-url.com';
+
+let csrfToken = '';
+
+async function getCsrfToken() {
+    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
+    const data = await res.json();
+    if (data.status === 'success') csrfToken = data.csrf_token;
+}
+
+async function checkAuth() {
+    await getCsrfToken();
+    const res = await fetch(`${API_BASE}/auth/me`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    if (res.status === 401) {
+        window.location.href = 'index.html';
+        return null;
+    }
+    const data = await res.json();
+    return data.data;
+}
+
+async function loadDashboard() {
+    const user = await checkAuth();
+    if (!user) return;
+
+    document.getElementById('username').textContent = '@' + user.username;
+    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+    document.getElementById('userRole').textContent = user.role;
+    document.getElementById('roleDesc').textContent = user.role === 'admin' ? 'Full access' : 'Read-only access';
+
+    const profilesRes = await fetch(`${API_BASE}/api/profiles?page=1&limit=1`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    const profilesData = await profilesRes.json();
+    document.getElementById('totalProfiles').textContent = profilesData.total || 0;
+
+    const countriesRes = await fetch(`${API_BASE}/api/profiles?page=1&limit=1000`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    const countriesData = await countriesRes.json();
+    const uniqueCountries = new Set((countriesData.data || []).map(p => p.country_id).filter(Boolean));
+    document.getElementById('totalCountries').textContent = uniqueCountries.size;
+
+    const adultsRes = await fetch(`${API_BASE}/api/profiles?age_group=adult&page=1&limit=1`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    const adultsData = await adultsRes.json();
+    document.getElementById('totalAdults').textContent = adultsData.total || 0;
+}
+
+async function logout() {
+    await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'X-API-Version': '1',
+            'X-CSRFToken': csrfToken
+        }
+    });
+    window.location.href = 'index.html';
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

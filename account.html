@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insighta Labs+ - Account</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background: #f5f7fa;
+    color: #333;
+}
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+}
+.navbar-brand { font-weight: 700; font-size: 20px; }
+.nav-links { display: flex; gap: 25px; }
+.nav-links a {
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    font-weight: 500;
+}
+.nav-links a:hover, .nav-links a.active { color: white; }
+.container {
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin-bottom: 16px;
+}
+.field {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+}
+.field:last-child { border-bottom: none; }
+.field label { color: #666; font-weight: 500; }
+.field span { font-weight: 600; }
+.role-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.role-admin { background: #c6f6d5; color: #22543d; }
+.role-analyst { background: #bee3f8; color: #2a4365; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-info img { width: 32px; height: 32px; border-radius: 50%; }
+.logout-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.danger-btn {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-top: 20px;
+}
+</style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="navbar-brand">Insighta Labs+</div>
+    <div class="nav-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="profiles.html">Profiles</a>
+        <a href="search.html">Search</a>
+        <a href="account.html" class="active">Account</a>
+    </div>
+    <div class="user-info">
+        <img id="avatar" src="" alt="">
+        <span id="username"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
+<div class="container">
+    <div class="card" style="text-align:center;">
+        <img id="userAvatar" class="avatar" src="" alt="">
+        <h2 id="displayName">-</h2>
+        <p id="displayEmail" style="color:#666;">-</p>
+    </div>
+    <div class="card" style="margin-top:20px;">
+        <div class="field">
+            <label>Username</label>
+            <span id="userName">-</span>
+        </div>
+        <div class="field">
+            <label>Email</label>
+            <span id="userEmail">-</span>
+        </div>
+        <div class="field">
+            <label>Role</label>
+            <span id="userRole" class="role-badge">-</span>
+        </div>
+        <div class="field">
+            <label>Status</label>
+            <span id="userStatus">-</span>
+        </div>
+        <div class="field">
+            <label>Member Since</label>
+            <span id="userCreated">-</span>
+        </div>
+        <div class="field">
+            <label>Last Login</label>
+            <span id="userLastLogin">-</span>
+        </div>
+        <button class="danger-btn" onclick="logout()">Log Out</button>
+    </div>
+<script>
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : 'https://your-backend-url.com';
+
+let csrfToken = '';
+
+async function getCsrfToken() {
+    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
+    const data = await res.json();
+    if (data.status === 'success') csrfToken = data.csrf_token;
+}
+
+async function loadAccount() {
+    await getCsrfToken();
+    const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', headers: { 'X-API-Version': '1' } });
+    if (res.status === 401) { window.location.href = 'index.html'; return; }
+    const data = await res.json();
+    const user = data.data;
+
+    document.getElementById('username').textContent = '@' + user.username;
+    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+    document.getElementById('userAvatar').src = user.avatar_url || 'https://github.com/github.png';
+    document.getElementById('displayName').textContent = user.username;
+    document.getElementById('displayEmail').textContent = user.email || 'No email provided';
+    document.getElementById('userName').textContent = '@' + user.username;
+    document.getElementById('userEmail').textContent = user.email || 'N/A';
+    
+    const roleEl = document.getElementById('userRole');
+    roleEl.textContent = user.role;
+    roleEl.className = 'role-badge role-' + user.role;
+
+    document.getElementById('userStatus').textContent = user.is_active ? 'Active' : 'Inactive';
+    document.getElementById('userCreated').textContent = new Date(user.created_at).toLocaleDateString();
+    document.getElementById('userLastLogin').textContent = user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'N/A';
+}
+
+async function logout() {
+    await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-API-Version': '1', 'X-CSRFToken': csrfToken }
+    });
+    window.location.href = 'index.html';
+}
+
+loadAccount();
+</script>
+</body>
+</html>

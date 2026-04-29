@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insighta Labs+ - Profiles</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background: #f5f7fa;
+    color: #333;
+}
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+}
+.navbar-brand { font-weight: 700; font-size: 20px; }
+.nav-links { display: flex; gap: 25px; }
+.nav-links a {
+    color: rgba(255,255,255,0.9);
+    text-decoration: none;
+    font-weight: 500;
+}
+.nav-links a:hover, .nav-links a.active { color: white; }
+.container {
+    max-width: 1200px;
+    margin: 30px auto;
+    padding: 0 20px;
+}
+.filters {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+.filters select, .filters input {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 2px solid #e1e5e9;
+    font-family: inherit;
+    font-size: 14px;
+}
+.filters button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.table-container {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    overflow-x: auto;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+th { font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; }
+tr:hover { background: #f8f9fa; }
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+}
+.pagination button {
+    padding: 8px 16px;
+    border: 2px solid #e1e5e9;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.pagination button.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-color: transparent;
+}
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-info img { width: 32px; height: 32px; border-radius: 50%; }
+.logout-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.create-btn {
+    background: linear-gradient(135deg, #48bb78, #38a169);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-left: auto;
+}
+.empty { text-align: center; padding: 40px; color: #999; }
+.export-btn {
+    background: white;
+    border: 2px solid #667eea;
+    color: #667eea;
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+}
+</style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="navbar-brand">Insighta Labs+</div>
+    <div class="nav-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="profiles.html" class="active">Profiles</a>
+        <a href="search.html">Search</a>
+        <a href="account.html">Account</a>
+    </div>
+    <div class="user-info">
+        <img id="avatar" src="" alt="">
+        <span id="username"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
+<div class="container">
+    <div class="filters">
+        <select id="gender"><option value="">All Genders</option><option value="male">Male</option><option value="female">Female</option></select>
+        <select id="age_group"><option value="">All Ages</option><option value="child">Child</option><option value="teenager">Teenager</option><option value="adult">Adult</option><option value="senior">Senior</option></select>
+        <input id="country" placeholder="Country ID (e.g. NG)" style="width:140px;">
+        <input id="min_age" type="number" placeholder="Min age" style="width:90px;">
+        <input id="max_age" type="number" placeholder="Max age" style="width:90px;">
+        <select id="sort_by">
+            <option value="created_at">Sort by Created</option>
+            <option value="age">Sort by Age</option>
+            <option value="gender_probability">Sort by Gender Prob</option>
+        </select>
+        <select id="order"><option value="desc">Desc</option><option value="asc">Asc</option></select>
+        <button onclick="applyFilters()">Apply</button>
+        <button class="export-btn" onclick="exportCsv()">Export CSV</button>
+        <button class="create-btn" id="createBtn" onclick="showCreate()" style="display:none;">+ Create</button>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th><th>Gender</th><th>Age</th><th>Age Group</th><th>Country</th><th>Gender Prob</th><th>Created</th>
+                </tr>
+            </thead>
+            <tbody id="profilesTable"></tbody>
+        </table>
+        <div class="empty" id="emptyState" style="display:none;">No profiles found.</div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+<script>
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000'
+    : 'https://your-backend-url.com';
+
+let csrfToken = '';
+let currentPage = 1;
+let currentFilters = {};
+
+async function getCsrfToken() {
+    const res = await fetch(`${API_BASE}/auth/csrf`, { credentials: 'include' });
+    const data = await res.json();
+    if (data.status === 'success') csrfToken = data.csrf_token;
+}
+
+async function checkAuth() {
+    await getCsrfToken();
+    const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include', headers: { 'X-API-Version': '1' } });
+    if (res.status === 401) { window.location.href = 'index.html'; return null; }
+    const data = await res.json();
+    return data.data;
+}
+
+async function loadProfiles(page = 1) {
+    const user = await checkAuth();
+    if (!user) return;
+    document.getElementById('username').textContent = '@' + user.username;
+    document.getElementById('avatar').src = user.avatar_url || 'https://github.com/github.png';
+    if (user.role === 'admin') document.getElementById('createBtn').style.display = 'inline-block';
+
+    const params = new URLSearchParams({ page, limit: 10, ...currentFilters });
+    const res = await fetch(`${API_BASE}/api/profiles?${params}`, {
+        credentials: 'include',
+        headers: { 'X-API-Version': '1' }
+    });
+    const data = await res.json();
+
+    const tbody = document.getElementById('profilesTable');
+    tbody.innerHTML = '';
+    const empty = document.getElementById('emptyState');
+
+    if (!data.data || data.data.length === 0) {
+        empty.style.display = 'block';
+        document.getElementById('pagination').innerHTML = '';
+        return;
+    }
+    empty.style.display = 'none';
+
+    data.data.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><a href="profile.html?id=${p.id}" style="color:#667eea;text-decoration:none;font-weight:500;">${p.name}</a></td>
+            <td>${p.gender || 'N/A'}</td>
+            <td>${p.age || 'N/A'}</td>
+            <td>${p.age_group || 'N/A'}</td>
+            <td>${p.country_id || 'N/A'} ${p.country_name ? '('+p.country_name+')' : ''}</td>
+            <td>${p.gender_probability != null ? p.gender_probability.toFixed(2) : 'N/A'}</td>
+            <td>${new Date(p.created_at).toLocaleDateString()}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderPagination(data.page, data.total_pages, data.links);
+    currentPage = page;
+}
+
+function renderPagination(page, totalPages, links) {
+    const div = document.getElementById('pagination');
+    div.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = 'Prev';
+    prevBtn.disabled = !links.prev;
+    prevBtn.onclick = () => loadProfiles(page - 1);
+    div.appendChild(prevBtn);
+
+    for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.className = i === page ? 'active' : '';
+        btn.onclick = () => loadProfiles(i);
+        div.appendChild(btn);
+    }
+
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = 'Next';
+    nextBtn.disabled = !links.next;
+    nextBtn.onclick = () => loadProfiles(page + 1);
+    div.appendChild(nextBtn);
+}
+
+function applyFilters() {
+    currentFilters = {};
+    const g = document.getElementById('gender').value;
+    const ag = document.getElementById('age_group').value;
+    const c = document.getElementById('country').value.trim();
+    const minA = document.getElementById('min_age').value;
+    const maxA = document.getElementById('max_age').value;
+    const sb = document.getElementById('sort_by').value;
+    const o = document.getElementById('order').value;
+    if (g) currentFilters.gender = g;
+    if (ag) currentFilters.age_group = ag;
+    if (c) currentFilters.country_id = c;
+    if (minA) currentFilters.min_age = minA;
+    if (maxA) currentFilters.max_age = maxA;
+    currentFilters.sort_by = sb;
+    currentFilters.order = o;
+    loadProfiles(1);
+}
+
+function showCreate() {
+    const name = prompt('Enter profile name:');
+    if (!name) return;
+    fetch(`${API_BASE}/api/profiles`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Version': '1',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ name })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'success') { alert('Created!'); loadProfiles(currentPage); }
+        else alert(d.message || 'Failed');
+    });
+}
+
+function exportCsv() {
+    const params = new URLSearchParams({ format: 'csv', ...currentFilters });
+    window.open(`${API_BASE}/api/profiles/export?${params}`, '_blank');
+}
+
+async function logout() {
+    await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-API-Version': '1', 'X-CSRFToken': csrfToken }
+    });
+    window.location.href = 'index.html';
+}
+
+loadProfiles();
+</script>
+</body>
+</html>
